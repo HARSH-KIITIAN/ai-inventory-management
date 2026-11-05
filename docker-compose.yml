@@ -1,0 +1,22 @@
+# One-command startup:  docker compose up --build
+# Then open http://localhost:5173
+#
+# LLM provider: defaults to the offline deterministic stub (no key needed).
+# To use a real model, put LLM_PROVIDER + the API key in backend/.env — it is
+# loaded automatically if present (see backend/.env.example).
+
+services:
+  backend:
+    build: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
