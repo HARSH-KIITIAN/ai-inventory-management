@@ -40,7 +40,7 @@ def config() -> dict:
 @router.get("/scenarios")
 def list_scenarios() -> dict:
     with Session(engine) as session:
-        rows = session.exec(select(Scenario)).all()
+        rows = session.exec(select(Scenario).order_by(Scenario.id)).all()
     return {"scenarios": [s.model_dump() for s in rows]}
 
 
