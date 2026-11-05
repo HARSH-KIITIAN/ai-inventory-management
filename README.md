@@ -22,6 +22,10 @@ recommended.
 
 ## Demo at a glance
 
+End-to-end walkthrough — Scenario 1 (review → modify → approve → verify) and Scenario 2 (supplier shortfall → reconcile → execute → read-back):
+
+![Demo walkthrough](docs/img/demo.gif)
+
 **Scenario 1 — the system recommends 800 units; the agent investigates and modifies it to 150** (it would otherwise breach budget and storage and overstock a perishable):
 
 ![S1 — recommendation review](docs/img/console-s1.png)
