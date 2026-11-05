@@ -176,7 +176,9 @@ ALL_SCENARIOS = ["S1", "S2", "S3", "S4"]
 def reset_scenario(session: Session, sid: str) -> None:
     """Wipe and re-create a single scenario world (used by the API reset endpoint)."""
     for table in _ALL_TABLES:
-        session.exec(delete(table).where(table.scenario_id == sid))
+        # The Scenario table keys on `id`; every other table carries `scenario_id`.
+        key = table.id if table is Scenario else table.scenario_id
+        session.exec(delete(table).where(key == sid))
     for row in _rows_for_scenario(sid):
         session.add(row)
     session.commit()
