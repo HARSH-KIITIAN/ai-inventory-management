@@ -18,9 +18,8 @@ from typing import Optional
 from sqlmodel import Session
 
 from .agent.agent import RunResult
-from .domain import orders, world
+from .domain import orders, po_check, world
 from .engine import replenishment as R
-from .engine.validation import validate_po
 from .schemas import Decision, ExecutionResult, ValidationReport
 
 _LOCK = threading.Lock()
@@ -84,13 +83,8 @@ store = RunStore()
 # --- execution-time re-validation ---------------------------------------------------
 
 def _revalidate(session: Session, sid: str, decision: Decision) -> ValidationReport:
-    a = decision.proposed_action
-    ctx = world.build_validation_context(session, sid, a.sku, a.node_id, a.supplier_id)
-    if ctx is None:
-        return ValidationReport(ok=False, violations=["missing_data_or_supplier_offer"])
-    res = validate_po(int(a.qty), ctx)
-    return ValidationReport(ok=res.ok, violations=res.violations,
-                            warnings=res.warnings, metrics=res.metrics)
+    report = po_check.validate_action(session, sid, decision.proposed_action)
+    return report or ValidationReport(ok=False, violations=["not_a_validatable_action"])
 
 
 # --- post-action read-back verification ---------------------------------------------

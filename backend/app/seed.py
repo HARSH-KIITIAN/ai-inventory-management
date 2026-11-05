@@ -79,8 +79,10 @@ def _rows_for_scenario(sid: str) -> list:
                 title="Supplier Cannot Fulfil the Purchase",
                 situation=(
                     "Open purchase order PO-2001 ordered 500 units of SPARKWTR-500 for node "
-                    "SAO-1 from supplier AquaPrime. The supplier now reports it can only supply "
-                    "part of that quantity. Determine what should happen next."
+                    "SAO-1 from supplier AquaPrime. First review whether current inventory plus "
+                    "this incoming order covers expected demand. Supplier fulfillment can change: "
+                    "if the supplier later reports it can only supply part of the order, the plan "
+                    "must be reconciled (use the control to report a shortfall)."
                 ),
                 recommended_sku="SPARKWTR-500", recommended_node="SAO-1",
                 recommended_qty=500, focus_po_id="PO-2001",

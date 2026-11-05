@@ -14,8 +14,7 @@ from typing import Callable, Optional
 from sqlmodel import Session
 
 from ..config import Settings, get_settings
-from ..domain import world
-from ..engine.validation import validate_po
+from ..domain import po_check
 from ..schemas import Decision, ValidationReport
 from .llm import LLMClient, get_client
 from .prompts import SYSTEM_PROMPT, build_initial_message
@@ -121,16 +120,4 @@ def run_agent(
 
 def _pre_validate(session: Session, sid: str, decision: Decision) -> Optional[ValidationReport]:
     """Validate a proposed create/modify order before asking for approval."""
-    action = decision.proposed_action
-    if action.action not in ("create_po", "modify_po"):
-        return None
-    if not (action.sku and action.node_id and action.supplier_id and action.qty):
-        return None
-
-    ctx = world.build_validation_context(session, sid, action.sku, action.node_id,
-                                         action.supplier_id)
-    if ctx is None:
-        return ValidationReport(ok=False, violations=["missing_data_or_supplier_offer"])
-    res = validate_po(int(action.qty), ctx)
-    return ValidationReport(ok=res.ok, violations=res.violations,
-                            warnings=res.warnings, metrics=res.metrics)
+    return po_check.validate_action(session, sid, decision.proposed_action)

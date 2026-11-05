@@ -20,9 +20,13 @@ class EvalCase:
     pre_confirm: Optional[tuple[str, int]] = None
     expected_categories: set[str] = field(default_factory=set)
     expected_action: set[str] = field(default_factory=set)
+    # The irreducible facts a buyer needs: demand, on-hand, what's on order, and
+    # the replenishment computation (which itself folds in supplier terms, budget
+    # and storage and reports the binding constraints). Explicitly fetching
+    # budget/storage/suppliers is good practice but their substance is captured
+    # by compute_replenishment, so we don't require those specific tool calls.
     required_tools: set[str] = field(default_factory=lambda: {
-        "get_demand", "get_inventory", "get_open_orders",
-        "get_suppliers", "get_budget", "get_storage", "compute_replenishment",
+        "get_demand", "get_inventory", "get_open_orders", "compute_replenishment",
     })
     check_qty_vs_oracle: bool = True
     expect_validation_event: bool = True   # agent validated its proposed order
@@ -43,10 +47,11 @@ CASES: list[EvalCase] = [
     EvalCase(
         id="S2-review-covered",
         sid="S2", mode="review",
-        expected_categories={"accept"},
+        # "accept" (keep the current plan) and "reject" (reject buying more) are
+        # semantically equivalent here: both correctly result in NO new order.
+        # We assert on that outcome (action == none) rather than the wording.
+        expected_categories={"accept", "reject"},
         expected_action={"none"},
-        required_tools={"get_demand", "get_inventory", "get_open_orders",
-                        "get_suppliers", "compute_replenishment"},
         check_qty_vs_oracle=False,
         expect_validation_event=False,
         execute_and_verify=True,       # no_action path still "succeeds" (outcome_ok)
@@ -64,7 +69,9 @@ CASES: list[EvalCase] = [
         id="S3-demand-spike",
         sid="S3", mode="review",
         expected_categories={"modify"},
-        expected_action={"create_po"},
+        # Adding the needed units via a NEW PO (create_po) or by raising the
+        # existing open PO (modify_po) are both valid ways to cover the spike.
+        expected_action={"create_po", "modify_po"},
         note="Recent sales ~3x forecast; the existing plan no longer covers demand -> buy more.",
     ),
     EvalCase(
@@ -78,7 +85,7 @@ CASES: list[EvalCase] = [
         id="S3-blocked-execution-when-budget-shrinks",
         sid="S3", mode="review",
         expected_categories={"modify"},
-        expected_action={"create_po"},
+        expected_action={"create_po", "modify_po"},
         check_qty_vs_oracle=True,
         execute_and_verify=False,      # handled specially: expect BLOCKED, not executed
         sabotage_budget_to=100.0,

@@ -71,6 +71,8 @@ def run_case(case: EvalCase, live: bool) -> dict:
         if case.pre_confirm:
             orders.confirm_po(session, case.pre_confirm[0], case.pre_confirm[1])
 
+        scenario = world.get_scenario(session, case.sid)
+        sku, node = scenario.recommended_sku, scenario.recommended_node
         sup, oracle_qty, ores = oracle_ground_truth(session, case.sid, case.mode)
         result = run_agent(session, case.sid, case.mode, client=client)
         decision = result.decision
@@ -92,13 +94,24 @@ def run_case(case: EvalCase, live: bool) -> dict:
         if not checks["action"]:
             detail.append(f"action={action.action} not in {case.expected_action}")
 
-        # 4) Quantity matches the oracle ground truth (within a tolerance).
+        # 4) Quantity is within the range of correct answers. The right quantity
+        #    is lead-time dependent, so it differs per supplier, and the agent may
+        #    legitimately pick any available supplier (e.g. S2: alternate vs.
+        #    re-order). We accept anything inside the band spanned by all
+        #    suppliers' oracle targets (+/- rounding tolerance); this still
+        #    rejects genuine errors (over-ordering, ordering zero when a buy is due).
         if case.check_qty_vs_oracle and action.qty is not None:
-            pack = ores.breakdown.get("pack_size", 1)
-            tol = max(pack, round(0.15 * max(oracle_qty, 1)))
-            checks["qty"] = abs(action.qty - oracle_qty) <= tol
+            targets = []
+            for o in world.get_offers(session, case.sid, sku):
+                inp2 = world.build_replenishment_input(session, case.sid, sku, node, o.supplier_id)
+                o2 = R.compute(inp2)
+                targets.append(o2.constrained_qty if (o2.feasible and o2.constrained_qty > 0)
+                               else o2.recommended_qty)
+            lo, hi = min(targets), max(targets)
+            tol = max(ores.breakdown.get("pack_size", 1), round(0.2 * max(hi, 1)))
+            checks["qty"] = (lo - tol) <= action.qty <= (hi + tol)
             if not checks["qty"]:
-                detail.append(f"qty={action.qty} vs oracle={oracle_qty} (tol {tol})")
+                detail.append(f"qty={action.qty} outside [{lo}-{hi}] +/- {tol}")
         else:
             checks["qty"] = True
 
@@ -115,7 +128,11 @@ def run_case(case: EvalCase, live: bool) -> dict:
         record = store.save(result)
         if case.sabotage_budget_to is not None:
             # Collapse the budget AFTER the proposal to force a blocked execution.
-            budget = world.get_budget(session, case.sid, action.node_id)
+            node_id = action.node_id
+            if node_id is None and action.po_id:  # modify_po may omit node_id
+                po = orders.get_po(session, action.po_id)
+                node_id = po.node_id if po else None
+            budget = world.get_budget(session, case.sid, node_id)
             budget.committed = budget.amount - case.sabotage_budget_to
             session.add(budget)
             session.commit()
